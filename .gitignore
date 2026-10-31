@@ -1,0 +1,22 @@
+# Inicializar repositorio local
+git init
+
+# Crear un .gitignore básico para Python/ML
+cat << 'EOF' > .gitignore
+# Entorno virtual
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Datos y modelos pesados (se gestionan con DVC o almacenamiento externo en MLOps real)
+data/processed/*
+!data/processed/.gitkeep
+models/*
+!models/.gitkeep
+
+# IDEs
+.vscode/
+.idea/
+.env
+EOF
