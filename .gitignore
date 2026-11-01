@@ -1,22 +1,62 @@
-# Inicializar repositorio local
-git init
+# --- PYTHON ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Crear un .gitignore básico para Python/ML
-cat << 'EOF' > .gitignore
-# Entorno virtual
+# --- ENTORNO VIRTUAL ---
 venv/
 env/
-__pycache__/
-*.pyc
+ENV/
+env.bak/
+venv.bak/
 
-# Datos y modelos pesados (se gestionan con DVC o almacenamiento externo en MLOps real)
+# --- DATOS Y MODELOS (MLOps) ---
+# Ignoramos los datos procesados y modelos pesados, pero mantenemos las carpetas con .gitkeep
 data/processed/*
 !data/processed/.gitkeep
 models/*
 !models/.gitkeep
 
-# IDEs
+# (Opcional) Si en algún momento manejas datos raw muy pesados, descomenta la siguiente línea:
+# data/raw/*
+# !data/raw/.gitkeep
+
+# --- CONFIGURACIÓN Y CREDENCIALES ---
+.env
+*.env
+.venv
+venv.local
+
+# --- IDEs Y EDITORES ---
 .vscode/
 .idea/
-.env
-EOF
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- LOGS Y CACHÉ ---
+*.log
+logs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

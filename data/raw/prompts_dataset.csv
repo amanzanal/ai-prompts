@@ -1,0 +1,4 @@
+target_ai,objective,raw_prompt,professional_prompt
+Midjourney,Crear imagen,un gato astronauta en la luna,"A cinematic shot of a cute cat wearing a detailed NASA spacesuit, walking on the moon surface, Earth in the background, photorealistic, 8k resolution, volumetric lighting, unreal engine 5 --ar 16:9 --v 6.0"
+ChatGPT,Redactar,escribe un correo para pedir aumento de sueldo,"Actúa como un profesional senior de recursos humanos y redacción corporativa. Redacta un correo electrónico persuasivo y formal dirigido a mi mánager solicitando una revisión salarial, basándome en mis logros recientes y aportes de valor al equipo. Mantén un tono asertivo, profesional y constructivo."
+Claude,Código,función en python para ordenar una lista,"Escribe una función en Python para ordenar una lista de enteros utilizando el algoritmo QuickSort. Incluye type hints, docstrings en formato Google, manejo de excepciones para entradas no válidas y tests unitarios con pytest."
