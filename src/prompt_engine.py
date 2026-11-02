@@ -1,6 +1,8 @@
 import os
+import json
 import logging
-from typing import Literal, Optional
+from pathlib import Path
+from typing import Literal, Optional, List
 from pydantic import BaseModel, Field
 
 # Configuración de Logging Profesional
@@ -13,76 +15,127 @@ logger = logging.getLogger("PromptEngine")
 # --- CONTRATOS DE DATOS (Pydantic) ---
 TargetAIType = Literal["ChatGPT", "Midjourney", "Claude", "DALL-E", "Stable Diffusion"]
 ObjectiveType = Literal["Crear imagen", "Redactar", "Código", "Análisis"]
+RegisterType = Literal["Formal", "Informal", "Neutro"]
 
 class EngineInput(BaseModel):
-    """Estructura de entrada que recibe el motor desde el frontend."""
-    raw_prompt: str = Field(..., min_length=3, description="Texto natural ingresado por el usuario")
+    """Estructura de entrada enriquecida que recibe el motor desde el frontend."""
+    raw_prompt: str = Field(..., min_length=3, description="Idea base ingresada por el usuario")
     target_ai: TargetAIType = Field(..., description="IA de destino seleccionada")
     objective: ObjectiveType = Field(..., description="Objetivo principal del prompt")
-    tone: Optional[str] = Field("Profesional", description="Tono opcional para el resultado")
+    language_register: RegisterType = Field("Formal", description="Registro de lenguaje seleccionado")
+    sub_type: Optional[str] = Field(None, description="Subtipo específico (ej. Correo, Refactorizar)")
+    tech_language: Optional[str] = Field(None, description="Tecnología o lenguaje de programación")
+    audience: Optional[str] = Field(None, description="Audiencia o tono específico")
 
 class EngineOutput(BaseModel):
-    """Estructura de salida que se devuelve al frontend para pintar en pantalla."""
+    """Estructura de salida devuelta al frontend."""
     raw_prompt: str
     target_ai: TargetAIType
     objective: ObjectiveType
     professional_prompt: str
-    model_used: str = Field(..., description="Identificador del modelo o tipo de motor utilizado")
+    model_used: str = Field(..., description="Identificador del motor utilizado")
 
-# --- MOTOR DE PROMPTS PRINCIPAL ---
+# --- MOTOR DE PROMPTS AVANZADO ---
 class PromptEngine:
     """
-    Motor central encargado de transformar prompts naturales en profesionales 
-    utilizando el conocimiento aprendido (Fine-Tuning / Few-Shot avanzado).
+    Motor central optimizado para la transformación de prompts mediante 
+    Few-Shot Prompting dinámico basado en el dataset procesado (JSONL).
     """
-    def __init__(self, model_name: str = "gpt-4o-mini"): # O tu modelo fine-tuned: ft:gpt-4o-mini:...
+    def __init__(self, model_name: str = "gpt-4o-mini", dataset_path: str = "data/processed/prompts_dataset.jsonl"):
         self.model_name = model_name
         self.api_key = os.getenv("OPENAI_API_KEY")
-        
-        if not self.api_key:
-            logger.warning("No se encontró la variable de entorno OPENAI_API_KEY. Asegúrate de configurarla si usas llamadas por API.")
+        self.dataset_path = Path(dataset_path)
+        self.few_shot_examples = self._load_dataset_examples()
 
-    def _build_system_prompt(self, target_ai: TargetAIType, objective: ObjectiveType) -> str:
-        """Construye las directrices de comportamiento del modelo basadas en la IA destino."""
+    def _load_dataset_examples(self) -> List[dict]:
+        """Carga ejemplos del dataset procesado para hacer Few-Shot Prompting."""
+        examples = []
+        if self.dataset_path.exists():
+            try:
+                with open(self.dataset_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip():
+                            examples.append(json.loads(line))
+                logger.info(f"Cargados {len(examples)} ejemplos de referencia para Few-Shot.")
+            except Exception as e:
+                logger.warning(f"No se pudieron cargar los ejemplos del dataset: {e}")
+        return examples
+
+    def _get_relevant_examples(self, target_ai: str, objective: str, limit: int = 2) -> str:
+        """Filtra y formatea ejemplos relevantes del dataset según la IA y el objetivo."""
+        filtered = [
+            ex for ex in self.few_shot_examples 
+            if ex.get("target_ai") == target_ai and ex.get("objective") == objective
+        ]
+        
+        # Si no hay exactos, tomamos cualesquiera del dataset
+        if not filtered:
+            filtered = self.few_shot_examples[:limit]
+        else:
+            filtered = filtered[:limit]
+
+        if not filtered:
+            return "No hay ejemplos previos disponibles."
+
+        formatted_text = "Ejemplos de referencia:\n"
+        for ex in filtered:
+            formatted_text += f"- Entrada: \"{ex['raw_prompt']}\"\n  Prompt Profesional Esperado: \"{ex['professional_prompt']}\"\n"
+        return formatted_text
+
+    def _build_system_prompt(self, user_input: EngineInput) -> str:
+        """Construye un prompt de sistema altamente descriptivo con contexto enriquecido."""
+        examples_text = self._get_relevant_examples(user_input.target_ai, user_input.objective)
+
         return (
-            f"Eres un experto Ingeniero de Prompts especializado en optimizar instrucciones para {target_ai}. "
-            f"El objetivo del usuario es: {objective}. "
-            "Tu tarea es transformar la idea informal del usuario en un prompt profesional, estructurado, "
-            "preciso y optimizado para obtener el 100% del rendimiento de la IA de destino. "
-            "Devuelve únicamente el prompt profesional optimizado, sin texto introductorio ni explicaciones adicionales."
+            f"Eres un Arquitecto e Ingeniero de Prompts Senior especializado en maximizar el rendimiento de {user_input.target_ai}. "
+            f"Tu objetivo principal es: {user_input.objective}. "
+            f"El usuario requiere un registro de lenguaje: {user_input.register}. "
+            f"{f'Subtipo o categoría: {user_input.sub_type}. ' if user_input.sub_type else ''}"
+            f"{f'Tecnología involucrada: {user_input.tech_language}. ' if user_input.tech_language else ''}"
+            f"{f'Audiencia objetivo: {user_input.audience}. ' if user_input.audience else ''}\n\n"
+            "Tu tarea es transformar la idea cruda del usuario en un prompt magistral, estructurado y técnico "
+            "que extraiga el 100% del potencial de la IA de destino.\n\n"
+            f"{examples_text}\n"
+            "Devuelve únicamente el texto del prompt profesional optimizado, sin introducciones ni comentarios adicionales."
         )
 
     def generate(self, user_input: EngineInput) -> EngineOutput:
-        """
-        Procesa la entrada del usuario y ejecuta la inferencia contra el modelo de IA.
-        """
-        logger.info(f"Generando prompt para Target AI: {user_input.target_ai} | Objetivo: {user_input.objective}")
+        logger.info(f"Procesando prompt -> Target: {user_input.target_ai} | Objetivo: {user_input.objective}")
 
-        system_prompt = self._build_system_prompt(user_input.target_ai, user_input.objective)
-        user_content = f"Idea original del usuario: {user_input.raw_prompt}"
+        system_prompt = self._build_system_prompt(user_input)
+        user_content = f"Idea original: {user_input.raw_prompt}"
 
         try:
-            # --- AQUí SE CONECTARÍA CON TU MODELO (API o Modelo Local) ---
-            # Si usas OpenAI / tu modelo fine-tuned, la llamada real sería algo así:
-            # client = OpenAI(api_key=self.api_key)
-            # response = client.chat.completions.create(
-            #     model=self.model_name,
-            #     messages=[
-            #         {"role": "system", "content": system_prompt},
-            #         {"role": "user", "content": user_content}
-            #     ],
-            #     temperature=0.7
-            # )
-            # professional_prompt = response.choices[0].message.content.strip()
+            professional_prompt = ""
 
-            # (Simulación funcional para desarrollo local mientras configuras tu API/Modelo)
-            professional_prompt = (
-                f"[Prompt Profesional optimizado por {self.model_name} para {user_input.target_ai}]: "
-                f"Actúa con precisión experta. Contexto: {user_input.raw_prompt}. "
-                f"Asegura una ejecución impecable orientada a {user_input.objective}."
-            )
+            # Conexión real con OpenAI si la API Key está configurada
+            if self.api_key:
+                from openai import OpenAI
+                client = OpenAI(api_key=self.api_key)
+                
+                response = client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content}
+                    ],
+                    temperature=0.7
+                )
+                professional_prompt = response.choices.message.content.strip()
+            else:
+                # Motor de respaldo inteligente (Mock avanzado para desarrollo local)
+                logger.warning("OPENAI_API_KEY no detectada. Usando motor de simulación avanzada.")
+                tech_tag = f"[{user_input.tech_language}] " if user_input.tech_language else ""
+                sub_tag = f"({user_input.sub_type})" if user_input.sub_type else ""
+                
+                professional_prompt = (
+                    f"Actuate as an elite expert in {user_input.target_ai} engineering. "
+                    f"Objective: {user_input.objective} {sub_tag}. Register: {user_input.register}. "
+                    f"{tech_tag}Context and requirements derived from user input: '{user_input.raw_prompt}'. "
+                    "Execute with maximum precision, adhering strictly to professional standards, robust architecture, and flawless delivery."
+                )
 
-            logger.info("Prompt profesional generado exitosamente.")
+            logger.info("Prompt profesional generado con éxito.")
 
             return EngineOutput(
                 raw_prompt=user_input.raw_prompt,
@@ -93,23 +146,19 @@ class PromptEngine:
             )
 
         except Exception as e:
-            logger.error(f"Error crítico durante la generación del prompt: {e}")
-            raise RuntimeError(f"Fallo en el motor de prompts: {e}")
+            logger.error(f"Error crítico en el motor de prompts: {e}")
+            raise RuntimeError(f"Fallo en la inferencia del PromptEngine: {e}")
 
-# --- BLOQUE DE PRUEBA LOCAL ---
+# --- PRUEBA LOCAL ---
 if __name__ == "__main__":
-    # Instanciamos el motor
     engine = PromptEngine()
-
-    # Simulamos lo que llegaría desde el frontend (tus selectores e input)
-    input_data = EngineInput(
-        raw_prompt="un gato astronauta en la luna",
-        target_ai="Midjourney",
-        objective="Crear imagen"
+    test_input = EngineInput(
+        raw_prompt="función para ordenar una lista en python",
+        target_ai="Claude",
+        objective="Código",
+        register="Formal",
+        sub_type="Crear nueva función / script",
+        tech_language="Python"
     )
-
-    # Ejecutamos la generación
-    resultado = engine.generate(input_data)
-    
-    print("\n--- RESULTADO DEL MOTOR ---")
-    print(resultado.model_dump_json(indent=2))
+    res = engine.generate(test_input)
+    print(res.model_dump_json(indent=2))

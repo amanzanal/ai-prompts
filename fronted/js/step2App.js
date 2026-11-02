@@ -41,7 +41,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (audienceElem) richContext += ` [Audiencia: ${audienceElem.value}]`;
         if (techLangElem) richContext += ` [Lenguaje Tech: ${techLangElem.value}]`;
 
-        const payload = { target_ai, objective, raw_prompt: richContext };
+        const payload = {
+        target_ai: target_ai,
+        objective: objective,
+        raw_prompt: raw_prompt,
+        register: document.getElementById('language_register').value,
+        sub_type: subTypeElem ? subTypeElem.value : null,
+        tech_language: techLangElem ? techLangElem.value : null,
+        audience: audienceElem ? audienceElem.value : null
+    };
         const submitBtn = document.getElementById('submit-btn');
         const t = translations[AppState.getLanguage()];
 
